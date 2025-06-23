@@ -14,9 +14,12 @@ This project demonstrates how to use **Redis Vector Sets (VSS)** in Redis 8 (202
 - `main_with_openai_llm_agent.py`  
   Extended search using OpenAI Chat API (`gpt-4o`, etc.) to answer movie-related questions with both Redis-based semantic context and LLM knowledge (hybrid RAG).
 
+- `main_gradio_llm_ui.py`  
+  (New!) A **Gradio web interface** that wraps the hybrid RAG logic, allowing users to interact with the system via a browser instead of the CLI.
+
 ## 🛠️ Requirements
 
-- Python 3.8+
+- Python 3.12+
 - Redis 8.0 (with vector sets enabled)
 - Virtualenv recommended
 
@@ -55,6 +58,12 @@ python main.py
 
 ```bash
 python main_with_openai_llm_agent.py
+```
+
+### 5. Run semantic search + OpenAI hybrid LLM (Web UI):
+
+```bash
+python main_gradio_llm_ui.py
 ```
 
 Ask things like:
