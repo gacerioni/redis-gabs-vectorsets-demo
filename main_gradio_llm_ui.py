@@ -48,6 +48,7 @@ def query_redis_vss(query_vector: np.ndarray, top_k: int = 5) -> List[dict]:
             metadata["id"] = item_id
             metadata["score"] = score
             results.append(metadata)
+            print("DEBUG: Found item:", item_id, "with score:", score, "and metadata:", metadata)
         return results
     except Exception as e:
         return [{"error": str(e)}]
@@ -63,22 +64,28 @@ def build_context_from_results(results: List[dict]) -> str:
     return "\n".join(lines)
 
 
-def ask_openai(system_msg: str, user_msg: str) -> str:
+def stream_openai(system_msg: str, user_msg: str):
     try:
         messages: List[ChatCompletionMessageParam] = [
             {"role": "system", "content": system_msg},
             {"role": "user", "content": user_msg}
         ]
-        response = openai_client.chat.completions.create(
+        stream = openai_client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=messages,
+            stream=True,
         )
-        return response.choices[0].message.content
+        result = ""
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                result += delta
+                yield result
     except Exception as e:
-        return f"[ERROR] OpenAI API call failed: {e}"
+        yield f"[ERROR] OpenAI streaming failed: {e}"
 
 
-def run_llm_pipeline(user_input: str) -> str:
+def run_llm_pipeline(user_input: str):
     vector = embed_query(user_input)
     results = query_redis_vss(vector, top_k=TOP_K)
     context = build_context_from_results(results)
@@ -89,15 +96,19 @@ def run_llm_pipeline(user_input: str) -> str:
         "The Redis dataset includes only the top 1000 IMDB movies, so feel free to expand with other examples as needed."
     )
     final_query = f"{context}\n\nUser query: {user_input}"
-    return ask_openai(system_prompt, final_query)
+
+    # 👇 make sure run_llm_pipeline is a generator by yielding each chunk
+    for chunk in stream_openai(system_prompt, final_query):
+        yield chunk
 
 
 if __name__ == "__main__":
     demo = gr.Interface(
         fn=run_llm_pipeline,
-        inputs=gr.Textbox(label="Describe the movie you want"),
-        outputs=gr.Textbox(label="AI Recommendation"),
+        inputs=gr.Textbox(label="Describe the movie you want", lines=6),
+        outputs=gr.Markdown(label="AI Recommendation"),
         title="🎬 Redis Vector Search + OpenAI RAG",
-        description="Type a query to get AI-powered movie recommendations using Redis Vector Sets and OpenAI GPT."
+        description="Type a query to get AI-powered movie recommendations using Redis Vector Sets and OpenAI GPT.",
+        flagging_mode="never"
     )
     demo.launch()
